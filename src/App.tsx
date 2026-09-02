@@ -278,14 +278,14 @@ const FileCard = ({ file, index }: { file: GithubFile; index: number }) => {
       transition={{ duration: 0.6, delay: index * 0.05, ease: [0.22, 1, 0.36, 1] }}
       onMouseEnter={(e) => { hoveredElement = e.currentTarget as HTMLElement; }}
       onMouseLeave={(e) => { if (hoveredElement === e.currentTarget) hoveredElement = null; }}
-      className="group relative flex flex-col bg-[#060606]/60 backdrop-blur-lg border border-white/10 p-4 md:p-6 transition-all duration-500 hover:border-white/30 hover:bg-[#060606]/20"
+      className="group relative flex flex-col bg-[#060606]/60 backdrop-blur-lg border border-white/10 p-2.5 sm:p-4 md:p-6 transition-all duration-500 hover:border-white/30 hover:bg-[#060606]/20"
     >
       {/* Decorative mini flower in corner */}
       <div className="absolute -bottom-6 -right-6 w-24 h-24 text-white opacity-[0.03] pointer-events-none transform rotate-12 transition-transform group-hover:scale-110 group-hover:rotate-45 duration-700 font-mono font-bold text-[80px] leading-none text-center">
         *
       </div>
 
-      <div className="relative w-full aspect-square md:aspect-[4/3] bg-[#111] border border-white/20 flex items-center justify-center overflow-hidden mb-6 bg-noise">
+      <div className="relative w-full aspect-square md:aspect-[4/3] bg-[#111] border border-white/20 flex items-center justify-center overflow-hidden mb-3 sm:mb-6 bg-noise">
         {type === 'imagen' && (
           <img src={url} alt={file.name} loading="lazy" className="w-full h-full object-cover filter-print transition-transform duration-700 group-hover:scale-105" />
         )}
@@ -322,27 +322,27 @@ const FileCard = ({ file, index }: { file: GithubFile; index: number }) => {
       </div>
 
       <div className="flex-grow flex flex-col justify-between relative z-10 bg-transparent">
-        <h3 className="font-bold text-sm md:text-base leading-tight uppercase tracking-tight break-all mb-6">
+        <h3 className="font-bold text-xs sm:text-sm md:text-base leading-tight uppercase tracking-tight break-all mb-3 sm:mb-6">
           {file.name}
         </h3>
         
         {type === 'audio' && (
-          <audio controls src={url} className="w-full h-8 mb-4 opacity-50 grayscale hover:opacity-100 transition-opacity invert" />
+          <audio controls src={url} className="w-full h-8 mb-3 sm:mb-4 opacity-50 grayscale hover:opacity-100 transition-opacity invert" />
         )}
 
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-1.5 sm:gap-2">
           <a
             href={url}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 w-full py-3 px-4 border border-white/50 text-xs font-bold uppercase tracking-widest hover:bg-white hover:text-black transition-colors"
+            className="flex items-center justify-center gap-2 w-full py-2 sm:py-3 px-2 sm:px-4 border border-white/50 text-[10px] sm:text-xs font-bold uppercase tracking-widest hover:bg-white hover:text-black transition-colors"
           >
             <ExternalLink className="w-4 h-4" /> View
           </a>
           <button
             onClick={handleDownload}
             disabled={downloading}
-            className="flex items-center justify-center gap-2 w-full py-3 px-4 bg-white text-black border border-white text-xs font-bold uppercase tracking-widest hover:bg-black hover:text-white disabled:opacity-50 disabled:cursor-wait transition-colors"
+            className="flex items-center justify-center gap-2 w-full py-2 sm:py-3 px-2 sm:px-4 bg-white text-black border border-white text-[10px] sm:text-xs font-bold uppercase tracking-widest hover:bg-black hover:text-white disabled:opacity-50 disabled:cursor-wait transition-colors"
           >
             <Download className="w-4 h-4" /> {downloading ? 'WAIT' : 'DOWNLOAD'}
           </button>
@@ -439,7 +439,7 @@ export default function App() {
               <p className="font-mono text-sm font-bold uppercase text-gray-400">No files found.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 md:gap-12">
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6 md:gap-8 lg:gap-12">
               {files.map((file, i) => (
                 <FileCard key={file.sha} file={file} index={i} />
               ))}
