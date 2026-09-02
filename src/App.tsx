@@ -4,7 +4,7 @@ import { Download, ExternalLink, File as FileIcon, Image as ImageIcon, Music, Vi
 
 // ==== CONFIGURATION ====
 const OWNER = "Joss-001-ty";
-const REPO = "kokekieras";
+const REPO = "archivos";
 const BRANCH = "main";
 const CARPETA = "archivos";
 // =======================
@@ -292,13 +292,24 @@ const FileCard = ({ file, index }: { file: GithubFile; index: number }) => {
         {type === 'video' && (
           <video src={url} muted preload="metadata" playsInline className="w-full h-full object-cover filter-print" />
         )}
+        {type === 'pdf' && (
+          <iframe src={url} loading="lazy" className="w-full h-full bg-white" title={file.name} />
+        )}
+        {type === 'oficina' && (
+          <iframe
+            src={`https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(url)}`}
+            loading="lazy"
+            className="w-full h-full bg-white"
+            title={file.name}
+          />
+        )}
         {type === 'texto' && (
           <div className="w-full h-full p-4 overflow-hidden bg-[#060606]/80 backdrop-blur-sm text-xs font-mono text-white whitespace-pre-wrap break-all relative">
              {textPreview || 'Loading...'}
              <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#060606] to-transparent"></div>
           </div>
         )}
-        {['audio', 'pdf', 'oficina', 'archivo', 'otro'].includes(type) && (
+        {['audio', 'archivo', 'otro'].includes(type) && (
           <div className="text-white/40 group-hover:text-white transition-colors duration-300">
             <IconForType type={type} className="w-16 h-16" />
           </div>
@@ -376,24 +387,25 @@ export default function App() {
         
         <header className="mb-24 flex flex-col md:flex-row items-center md:items-start justify-between gap-12">
           <div className="flex-1 max-w-2xl relative">
-            <motion.h1 
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ 
-                opacity: 1, 
-                x: [0, -4, 4, -2, 0, 0, 0, 0],
-                y: [0, 2, -2, 1, 0, 0, 0, 0],
-                filter: ["hue-rotate(0deg)", "hue-rotate(90deg)", "hue-rotate(-90deg)", "hue-rotate(0deg)", "hue-rotate(0deg)"]
-              }}
-              transition={{ 
-                opacity: { duration: 0.8, ease: "easeOut" },
-                x: { repeat: Infinity, duration: 4, times: [0, 0.02, 0.04, 0.06, 0.08, 1] },
-                y: { repeat: Infinity, duration: 4, times: [0, 0.02, 0.04, 0.06, 0.08, 1] },
-                filter: { repeat: Infinity, duration: 4, times: [0, 0.02, 0.04, 0.06, 1] }
-              }}
-              className="text-6xl md:text-8xl lg:text-[10rem] font-black tracking-tighter uppercase leading-[0.8] mix-blend-screen relative z-10 text-center md:text-left"
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.8, ease: "easeOut" }}
+              className="relative inline-block text-center md:text-left"
             >
-              ARCHI<br/>VOS
-            </motion.h1>
+              <h1 aria-hidden="true" className="blur-[10px] opacity-90 text-6xl md:text-8xl lg:text-[10rem] font-black tracking-tighter uppercase leading-[0.8]">
+                ARCHIVOS
+              </h1>
+              <h1
+                className="absolute inset-0 text-6xl md:text-8xl lg:text-[10rem] font-black tracking-tighter uppercase leading-[0.8]"
+                style={{
+                  WebkitMaskImage: 'linear-gradient(90deg, transparent 0%, black 35%, black 65%, transparent 100%)',
+                  maskImage: 'linear-gradient(90deg, transparent 0%, black 35%, black 65%, transparent 100%)',
+                }}
+              >
+                ARCHIVOS
+              </h1>
+            </motion.div>
             <motion.p 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
