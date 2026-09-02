@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
 import { Download, ExternalLink, File as FileIcon, Image as ImageIcon, Music, Video, FileText, Archive, FileSpreadsheet } from 'lucide-react';
 
@@ -52,68 +52,126 @@ const IconForType = ({ type, className }: { type: string, className?: string }) 
 
 // --- Subcomponents ---
 
-const SVGDefinitions = () => (
-  <svg width="0" height="0" className="absolute" aria-hidden="true">
-    <defs>
-      <pattern id="halftoneSparse" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-        <circle cx="1.5" cy="1.5" r="1.2" fill="currentColor" />
-      </pattern>
-      <pattern id="halftoneDense" width="3" height="3" patternUnits="userSpaceOnUse" patternTransform="rotate(15)">
-        <circle cx="1" cy="1" r="1" fill="currentColor" />
-      </pattern>
+const HalftoneBackground = () => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d', { alpha: false });
+    if (!ctx) return;
+
+    let width = window.innerWidth;
+    let height = window.innerHeight;
+
+    const handleResize = () => {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = width;
+      canvas.height = height;
+    };
+    
+    window.addEventListener('resize', handleResize);
+    handleResize();
+
+    const cellSize = 16;
+    let time = 0;
+
+    const render = () => {
+      time += 0.015;
       
-      {/* Warped Grid (Op-Art style from image 2) */}
-      <pattern id="warpedGrid" width="60" height="60" patternUnits="userSpaceOnUse">
-        <path d="M 60 0 L 0 0 0 60" fill="none" stroke="currentColor" strokeWidth="1.5" />
-      </pattern>
-      <filter id="warp" x="-20%" y="-20%" width="140%" height="140%">
-        <feTurbulence type="fractalNoise" baseFrequency="0.005" numOctaves="2" result="noise" />
-        <feDisplacementMap in="SourceGraphic" in2="noise" scale="120" xChannelSelector="R" yChannelSelector="G" />
-      </filter>
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, width, height);
 
-      {/* Pixelated Halftone Dither (Blocky style from image 3) */}
-      <pattern id="pixelDither" width="32" height="32" patternUnits="userSpaceOnUse">
-        <rect x="0" y="0" width="4" height="4" fill="currentColor" opacity="0.9"/>
-        <rect x="8" y="4" width="2" height="2" fill="currentColor" opacity="0.5"/>
-        <rect x="16" y="12" width="8" height="8" fill="currentColor" opacity="0.2"/>
-        <rect x="28" y="6" width="2" height="2" fill="currentColor" opacity="0.8"/>
-        <rect x="4" y="24" width="4" height="4" fill="currentColor" opacity="0.4"/>
-        <rect x="14" y="28" width="2" height="2" fill="currentColor" opacity="0.9"/>
-        <rect x="24" y="20" width="4" height="4" fill="currentColor" opacity="0.6"/>
-        <rect x="12" y="2" width="2" height="2" fill="currentColor" opacity="0.3"/>
-        <rect x="2" y="14" width="2" height="2" fill="currentColor" opacity="0.7"/>
-        <rect x="22" y="30" width="2" height="2" fill="currentColor" opacity="0.5"/>
-      </pattern>
-      <mask id="ditherMask">
-        <radialGradient id="fadeGrad" cx="50%" cy="50%" r="70%">
-          <stop offset="0%" stopColor="white" stopOpacity="1" />
-          <stop offset="100%" stopColor="black" stopOpacity="0" />
-        </radialGradient>
-        <rect width="100%" height="100%" fill="url(#fadeGrad)" />
-      </mask>
+      const cx = width / 2;
+      const cy = height / 2;
+      const maxR = Math.min(width, height) * 0.4;
+      const maxDot = cellSize * 0.95;
 
-      <symbol id="flor" viewBox="0 0 100 100">
-        {/* Stamen/Pistil lines radiating out, made of dots */}
-        <path d="M50 50 Q30 20 10 30" fill="none" stroke="currentColor" strokeWidth="1" strokeDasharray="1 3" strokeLinecap="round" />
-        <path d="M50 50 Q20 40 5 50" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray="1 4" strokeLinecap="round" />
-        <path d="M50 50 Q30 70 20 90" fill="none" stroke="currentColor" strokeWidth="1" strokeDasharray="1 3" strokeLinecap="round" />
-        <path d="M50 50 Q60 20 80 15" fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray="1 4" strokeLinecap="round" />
-        <path d="M50 50 Q80 40 95 45" fill="none" stroke="currentColor" strokeWidth="1" strokeDasharray="1 3" strokeLinecap="round" />
-        <path d="M50 50 Q70 70 85 85" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray="1 4" strokeLinecap="round" />
-        
-        {/* Dense center */}
-        <circle cx="50" cy="50" r="8" fill="url(#halftoneDense)" />
-        <circle cx="50" cy="50" r="14" fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray="1 4" />
-        
-        {/* Petals using sparse dots */}
-        <path d="M50 50 C 45 30 30 25 25 35 C 30 45 45 55 50 50" fill="url(#halftoneSparse)" />
-        <path d="M50 50 C 55 30 70 25 75 35 C 70 45 55 55 50 50" fill="url(#halftoneSparse)" />
-        <path d="M50 50 C 60 65 75 75 70 85 C 60 75 50 65 50 50" fill="url(#halftoneSparse)" />
-        <path d="M50 50 C 40 65 25 75 30 85 C 40 75 50 65 50 50" fill="url(#halftoneSparse)" />
-      </symbol>
-    </defs>
-  </svg>
-);
+      const cols = Math.ceil(width / cellSize);
+      const rows = Math.ceil(height / cellSize);
+      
+      ctx.fillStyle = '#ffffff';
+
+      for (let i = 0; i < cols; i++) {
+        for (let j = 0; j < rows; j++) {
+          const x = i * cellSize;
+          const y = j * cellSize;
+          
+          const dx = x - cx;
+          const dy = y - cy + maxR * 0.1;
+          
+          let angle = Math.atan2(dy, dx);
+          let dist = Math.sqrt(dx * dx + dy * dy);
+          
+          // Organic twist
+          angle += Math.sin(dist * 0.003 - time * 0.5) * 0.3;
+          
+          // Flower Mask
+          const petalRadius = maxR * (0.3 + 0.7 * Math.abs(Math.sin(5 * angle * 0.5 + time * 0.3)));
+          const isPetal = dist < petalRadius && dy < maxR * 0.5;
+          
+          const stemCurve = Math.sin(dy * 0.01 - time * 0.5) * 40;
+          const isStem = dy >= maxR * 0.5 && dy < maxR * 1.5 && Math.abs(dx - stemCurve) < 30;
+          
+          let mask = 0;
+          if (isPetal) {
+            mask = 1 - Math.pow(dist / petalRadius, 2);
+          } else if (isStem) {
+            mask = 1 - Math.abs(dx - stemCurve) / 30;
+          }
+
+          // Smooth multi-layered noise for the organic 'melted' look
+          const nx = i * 0.07;
+          const ny = j * 0.07;
+          const noise1 = Math.sin(nx + time) * Math.cos(ny - time * 0.8);
+          const noise2 = Math.sin(nx * 0.5 - ny * 0.3 + time * 1.2);
+          const noise3 = Math.cos(nx * 1.2 + ny * 1.3 - time * 1.5);
+          const noise = (noise1 + noise2 + noise3) / 3; // Range ~ -1 to 1
+          
+          // Ambient background ripples
+          let intensity = (noise + 1) * 0.1; 
+
+          // Combine mask with noise
+          if (mask > 0) {
+            intensity += mask * (0.5 + noise * 0.5);
+          }
+
+          intensity = Math.max(0, Math.min(1, intensity));
+
+          if (intensity > 0.03) {
+            const size = Math.pow(intensity, 1.2) * maxDot;
+            const alpha = 0.2 + intensity * 0.8;
+            
+            ctx.globalAlpha = alpha;
+            
+            const radius = size > cellSize * 0.5 ? size * 0.4 : size * 0.5;
+            
+            ctx.beginPath();
+            if (ctx.roundRect) {
+              ctx.roundRect(x + (cellSize - size)/2, y + (cellSize - size)/2, size, size, radius);
+            } else {
+              ctx.arc(x + cellSize/2, y + cellSize/2, size/2, 0, Math.PI * 2);
+            }
+            ctx.fill();
+          }
+        }
+      }
+      
+      ctx.globalAlpha = 1.0;
+      animId = requestAnimationFrame(render);
+    };
+
+    let animId = requestAnimationFrame(render);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      cancelAnimationFrame(animId);
+    };
+  }, []);
+
+  return <canvas ref={canvasRef} className="fixed inset-0 z-0 pointer-events-none mix-blend-screen opacity-70" />;
+};
 
 const FileCard = ({ file, index }: { file: GithubFile; index: number }) => {
   const [downloading, setDownloading] = useState(false);
@@ -158,9 +216,9 @@ const FileCard = ({ file, index }: { file: GithubFile; index: number }) => {
       className="group relative flex flex-col bg-[#060606]/60 backdrop-blur-xl border border-white/20 p-4 md:p-6 transition-all duration-300 hover:border-white hover:bg-[#060606]/80 hover:shadow-[8px_8px_0px_0px_rgba(255,255,255,1)]"
     >
       {/* Decorative mini flower in corner */}
-      <svg className="absolute -bottom-6 -right-6 w-24 h-24 text-white opacity-10 pointer-events-none transform rotate-12 transition-transform group-hover:scale-110 group-hover:rotate-45 duration-700">
-        <use href="#flor" />
-      </svg>
+      <div className="absolute -bottom-6 -right-6 w-24 h-24 text-white opacity-[0.03] pointer-events-none transform rotate-12 transition-transform group-hover:scale-110 group-hover:rotate-45 duration-700 font-mono font-bold text-[80px] leading-none text-center">
+        *
+      </div>
 
       <div className="relative w-full aspect-square md:aspect-[4/3] bg-[#111] border border-white/20 flex items-center justify-center overflow-hidden mb-6 bg-noise">
         {type === 'imagen' && (
@@ -234,41 +292,39 @@ export default function App() {
 
   return (
     <div className="min-h-screen relative overflow-hidden bg-[#060606] text-white font-sans selection:bg-white selection:text-black">
-      <SVGDefinitions />
       
+      <HalftoneBackground />
+
       {/* Global Halftone/Noise Background Layer */}
       <div className="fixed inset-0 pointer-events-none z-0 opacity-40 bg-noise mix-blend-screen"></div>
       
-      {/* Decorative Warped Grid (Op-Art Style) */}
-      <svg className="fixed inset-0 w-full h-full pointer-events-none z-0 text-white opacity-[0.06]" aria-hidden="true">
-        <rect width="100%" height="100%" fill="url(#warpedGrid)" filter="url(#warp)" />
-      </svg>
-      
-      {/* Pixelated Halftone Scatter (Digital Dither Style) */}
-      <svg className="fixed inset-0 w-full h-full pointer-events-none z-0 text-white opacity-[0.15]" aria-hidden="true">
-        <rect width="100%" height="100%" fill="url(#pixelDither)" mask="url(#ditherMask)" />
-      </svg>
-
-      {/* Decorative Giant Background Flowers */}
-      <svg className="fixed -top-32 -right-32 w-[600px] h-[600px] text-white opacity-[0.05] pointer-events-none transform -rotate-12 z-0">
-        <use href="#flor" />
-      </svg>
-      <svg className="fixed top-2/3 -left-48 w-[800px] h-[800px] text-white opacity-[0.03] pointer-events-none transform rotate-45 z-0">
-        <use href="#flor" />
-      </svg>
+      {/* CRT Scanline Effect */}
+      <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden mix-blend-overlay">
+        <motion.div 
+          animate={{ y: ["-100vh", "100vh"] }}
+          transition={{ repeat: Infinity, duration: 8, ease: "linear" }}
+          className="w-full h-32 bg-gradient-to-b from-transparent via-white/10 to-transparent"
+        />
+      </div>
 
       <div className="relative z-10 w-full max-w-7xl mx-auto px-6 py-24 md:px-12 md:py-32">
         
         <header className="mb-24 flex flex-col md:flex-row items-center md:items-start justify-between gap-12">
           <div className="flex-1 max-w-2xl relative">
-            {/* Flower overlapping text */}
-            <svg className="absolute -top-16 -left-12 w-32 h-32 text-white opacity-40 pointer-events-none transform -rotate-12 mix-blend-screen hidden md:block">
-              <use href="#flor" />
-            </svg>
             <motion.h1 
               initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.8, ease: "easeOut" }}
+              animate={{ 
+                opacity: 1, 
+                x: [0, -4, 4, -2, 0, 0, 0, 0],
+                y: [0, 2, -2, 1, 0, 0, 0, 0],
+                filter: ["hue-rotate(0deg)", "hue-rotate(90deg)", "hue-rotate(-90deg)", "hue-rotate(0deg)", "hue-rotate(0deg)"]
+              }}
+              transition={{ 
+                opacity: { duration: 0.8, ease: "easeOut" },
+                x: { repeat: Infinity, duration: 4, times: [0, 0.02, 0.04, 0.06, 0.08, 1] },
+                y: { repeat: Infinity, duration: 4, times: [0, 0.02, 0.04, 0.06, 0.08, 1] },
+                filter: { repeat: Infinity, duration: 4, times: [0, 0.02, 0.04, 0.06, 1] }
+              }}
               className="text-6xl md:text-8xl lg:text-[10rem] font-black tracking-tighter uppercase leading-[0.8] mix-blend-screen relative z-10 text-center md:text-left"
             >
               ARCHI<br/>VOS
@@ -288,9 +344,7 @@ export default function App() {
           {loading ? (
             <div className="flex justify-center items-center py-32">
               <div className="flex flex-col items-center gap-4">
-                <svg className="w-12 h-12 text-white animate-spin" viewBox="0 0 100 100">
-                  <use href="#flor" />
-                </svg>
+                <div className="w-12 h-12 border-4 border-white/20 border-t-white rounded-full animate-spin"></div>
                 <p className="font-mono text-xs uppercase tracking-widest text-gray-400">Indexing...</p>
               </div>
             </div>
@@ -315,9 +369,6 @@ export default function App() {
           <p className="font-mono text-xs uppercase tracking-widest text-gray-500">
             {new Date().getFullYear()} © Joss-001-ty
           </p>
-          <svg className="w-8 h-8 text-white opacity-20" viewBox="0 0 100 100">
-            <use href="#flor" />
-          </svg>
         </footer>
       </div>
     </div>
