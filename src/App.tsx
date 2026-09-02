@@ -293,7 +293,12 @@ const FileCard = ({ file, index }: { file: GithubFile; index: number }) => {
           <video src={url} muted preload="metadata" playsInline className="w-full h-full object-cover filter-print" />
         )}
         {type === 'pdf' && (
-          <iframe src={url} loading="lazy" className="w-full h-full bg-white" title={file.name} />
+          <iframe
+            src={`https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`}
+            loading="lazy"
+            className="w-full h-full bg-white"
+            title={file.name}
+          />
         )}
         {type === 'oficina' && (
           <iframe
