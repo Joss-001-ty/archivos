@@ -52,6 +52,9 @@ const IconForType = ({ type, className }: { type: string, className?: string }) 
 
 // --- Subcomponents ---
 
+let hoveredElement: HTMLElement | null = null;
+let currentHoverRect = { x: 0, y: 0, w: 0, h: 0, alpha: 0, element: null as HTMLElement | null };
+
 const HalftoneBackground = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -93,6 +96,36 @@ const HalftoneBackground = () => {
       
       ctx.fillStyle = '#ffffff';
 
+      let targetX = 0, targetY = 0, targetW = 0, targetH = 0, targetAlpha = 0;
+      if (hoveredElement) {
+          const rect = hoveredElement.getBoundingClientRect();
+          targetX = rect.left;
+          targetY = rect.top;
+          targetW = rect.width;
+          targetH = rect.height;
+          targetAlpha = 1;
+          
+          if (currentHoverRect.element !== hoveredElement) {
+              // Snap immediately when hovering a new element
+              currentHoverRect.x = targetX;
+              currentHoverRect.y = targetY;
+              currentHoverRect.w = targetW;
+              currentHoverRect.h = targetH;
+              currentHoverRect.element = hoveredElement;
+          } else {
+              // Follow smoothly if the element is just scrolling/moving slightly
+              currentHoverRect.x += (targetX - currentHoverRect.x) * 0.3;
+              currentHoverRect.y += (targetY - currentHoverRect.y) * 0.3;
+              currentHoverRect.w += (targetW - currentHoverRect.w) * 0.3;
+              currentHoverRect.h += (targetH - currentHoverRect.h) * 0.3;
+          }
+      } else {
+          currentHoverRect.element = null;
+      }
+
+      currentHoverRect.alpha += (targetAlpha - currentHoverRect.alpha) * 0.12;
+      if (currentHoverRect.alpha < 0.001) currentHoverRect.alpha = 0;
+
       for (let i = 0; i < cols; i++) {
         for (let j = 0; j < rows; j++) {
           const x = i * cellSize;
@@ -130,18 +163,48 @@ const HalftoneBackground = () => {
           const noise = (noise1 + noise2 + noise3) / 3; // Range ~ -1 to 1
           
           // Ambient background ripples
-          let intensity = (noise + 1) * 0.1; 
+          let intensity = (noise + 1) * 0.06; 
 
           // Combine mask with noise
           if (mask > 0) {
-            intensity += mask * (0.5 + noise * 0.5);
+            intensity += mask * (0.4 + noise * 0.4);
+          }
+
+          if (currentHoverRect.alpha > 0.01) {
+             const cx2 = currentHoverRect.x + currentHoverRect.w / 2;
+             const cy2 = currentHoverRect.y + currentHoverRect.h / 2;
+             const absDx = Math.abs(x - cx2) - currentHoverRect.w / 2;
+             const absDy = Math.abs(y - cy2) - currentHoverRect.h / 2;
+             const sdt = Math.max(absDx, absDy);
+             
+             // Dynamic glowing outline effect
+             const edgeDist = Math.abs(sdt);
+             const outlineSpread = 40; 
+             
+             if (edgeDist < outlineSpread) {
+                const rectMask = Math.pow(1 - (edgeDist / outlineSpread), 2) * currentHoverRect.alpha;
+                
+                // Breathing and organic dot variation
+                const dotVariation = (Math.sin(i * 0.8 + time * 3) * Math.cos(j * 0.8 - time * 2)) * 0.5 + 0.5;
+                const breath = Math.sin(time * 2) * 0.3 + 0.7; // 0.4 to 1.0
+                
+                // Bright white highlight precisely on the edge, varied by dot position and time
+                // Lowered intensity multiplier for a softer glow
+                intensity += rectMask * (0.3 + dotVariation * 0.8) * breath;
+             }
+             
+             // Very subtle fill inside
+             if (sdt < 0) {
+                intensity += 0.03 * currentHoverRect.alpha;
+             }
           }
 
           intensity = Math.max(0, Math.min(1, intensity));
 
           if (intensity > 0.03) {
-            const size = Math.pow(intensity, 1.2) * maxDot;
-            const alpha = 0.2 + intensity * 0.8;
+            // Slight reduction in maximum size and alpha for a more elegant, subtle look
+            const size = Math.pow(intensity, 1.3) * maxDot * 0.85;
+            const alpha = 0.15 + intensity * 0.65;
             
             ctx.globalAlpha = alpha;
             
@@ -213,7 +276,9 @@ const FileCard = ({ file, index }: { file: GithubFile; index: number }) => {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, delay: index * 0.05, ease: [0.22, 1, 0.36, 1] }}
-      className="group relative flex flex-col bg-[#060606]/60 backdrop-blur-xl border border-white/20 p-4 md:p-6 transition-all duration-300 hover:border-white hover:bg-[#060606]/80 hover:shadow-[8px_8px_0px_0px_rgba(255,255,255,1)]"
+      onMouseEnter={(e) => { hoveredElement = e.currentTarget as HTMLElement; }}
+      onMouseLeave={(e) => { if (hoveredElement === e.currentTarget) hoveredElement = null; }}
+      className="group relative flex flex-col bg-[#060606]/60 backdrop-blur-lg border border-white/10 p-4 md:p-6 transition-all duration-500 hover:border-white/30 hover:bg-[#060606]/20"
     >
       {/* Decorative mini flower in corner */}
       <div className="absolute -bottom-6 -right-6 w-24 h-24 text-white opacity-[0.03] pointer-events-none transform rotate-12 transition-transform group-hover:scale-110 group-hover:rotate-45 duration-700 font-mono font-bold text-[80px] leading-none text-center">
