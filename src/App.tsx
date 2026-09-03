@@ -294,7 +294,7 @@ const FileCard = ({ file, index }: { file: GithubFile; index: number }) => {
         )}
         {type === 'pdf' && (
           <iframe
-            src={`https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`}
+            src={url}
             loading="lazy"
             className="w-full h-full bg-white"
             title={file.name}
