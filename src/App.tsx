@@ -77,10 +77,26 @@ const HalftoneBackground = () => {
     window.addEventListener('resize', handleResize);
     handleResize();
 
-    const cellSize = 16;
+    const cellSize = 24;
     let time = 0;
+    let isVisible = true;
 
-    const render = () => {
+    const handleVisibility = () => { isVisible = document.visibilityState === 'visible'; };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    let lastFrame = 0;
+    const frameInterval = 1000 / 30; // 30fps es suficiente para este efecto y reduce carga
+
+    const render = (now: number = 0) => {
+      if (!isVisible) {
+        animId = requestAnimationFrame(render);
+        return;
+      }
+      if (now - lastFrame < frameInterval) {
+        animId = requestAnimationFrame(render);
+        return;
+      }
+      lastFrame = now;
       time += 0.015;
       
       ctx.fillStyle = '#000000';
@@ -229,6 +245,7 @@ const HalftoneBackground = () => {
 
     return () => {
       window.removeEventListener('resize', handleResize);
+      document.removeEventListener('visibilitychange', handleVisibility);
       cancelAnimationFrame(animId);
     };
   }, []);
