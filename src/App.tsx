@@ -17,7 +17,14 @@ interface GithubFile {
   name: string;
   sha: string;
   type: string;
+  size: number;
 }
+
+const formatSize = (bytes: number) => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
 
 const TIPOS = {
   imagen: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'tiff', 'tif', 'avif', 'heic', 'heif'],
@@ -289,7 +296,7 @@ const AlphabetIndex = ({ active, onChange }: { active: string | null; onChange: 
   );
 };
 
-const FileCard = ({ file, index, highlighted, dateStr }: { file: GithubFile; index: number; highlighted?: boolean; dateStr?: string | null }) => {
+const FileCard = ({ file, index, highlighted, dateStr, innerRef }: { file: GithubFile; index: number; highlighted?: boolean; dateStr?: string | null; innerRef?: (el: HTMLDivElement | null) => void }) => {
   const [downloading, setDownloading] = useState(false);
   const [textPreview, setTextPreview] = useState<string | null>(null);
   const url = getCdnUrl(file.name);
@@ -326,6 +333,7 @@ const FileCard = ({ file, index, highlighted, dateStr }: { file: GithubFile; ind
 
   return (
     <motion.div
+      ref={innerRef}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, delay: index * 0.05, ease: [0.22, 1, 0.36, 1] }}
@@ -380,7 +388,7 @@ const FileCard = ({ file, index, highlighted, dateStr }: { file: GithubFile; ind
         </h3>
 
         <p className="text-[9px] sm:text-[10px] font-mono text-gray-500 uppercase tracking-wide mb-3 sm:mb-6 min-h-[1.2em]">
-          {dateStr ? `Actualizado: ${dateStr}` : ''}
+          {dateStr ? `Actualizado: ${dateStr} · ` : ''}{formatSize(file.size)}
         </p>
         
         {type === 'audio' && (
@@ -416,6 +424,9 @@ export default function App() {
   const [query, setQuery] = useState('');
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
   const [lastModified, setLastModified] = useState<Record<string, string>>({});
+  const [sortBy, setSortBy] = useState<'name' | 'size' | 'type' | 'date'>('name');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
     fetch(API_URL)
@@ -431,24 +442,76 @@ export default function App() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Trae la fecha del último commit que tocó cada archivo (best-effort, sin bloquear la UI)
+  // Trae la fecha del último commit que tocó cada archivo (best-effort, con caché y concurrencia limitada)
   useEffect(() => {
+    if (files.length === 0) return;
     let cancelled = false;
-    files.forEach(f => {
-      const commitsUrl = `https://api.github.com/repos/${OWNER}/${REPO}/commits?path=${encodeURIComponent(`${CARPETA}/${f.name}`)}&sha=${BRANCH}&per_page=1`;
-      fetch(commitsUrl)
-        .then(r => (r.ok ? r.json() : Promise.reject()))
-        .then((data) => {
-          if (cancelled || !Array.isArray(data) || !data[0]) return;
-          const date = data[0]?.commit?.committer?.date || data[0]?.commit?.author?.date;
-          if (date) setLastModified(prev => ({ ...prev, [f.sha]: date }));
-        })
-        .catch(() => {});
+
+    const cacheKey = (name: string) => `lastmod:${OWNER}/${REPO}/${CARPETA}/${name}`;
+
+    const fetchOne = async (f: GithubFile) => {
+      const key = cacheKey(f.name);
+      const cached = sessionStorage.getItem(key);
+      if (cached) {
+        if (!cancelled) setLastModified(prev => ({ ...prev, [f.sha]: cached }));
+        return;
+      }
+      try {
+        const commitsUrl = `https://api.github.com/repos/${OWNER}/${REPO}/commits?path=${encodeURIComponent(`${CARPETA}/${f.name}`)}&sha=${BRANCH}&per_page=1`;
+        const res = await fetch(commitsUrl);
+        if (!res.ok) return;
+        const data = await res.json();
+        const date = data?.[0]?.commit?.committer?.date || data?.[0]?.commit?.author?.date;
+        if (date) {
+          sessionStorage.setItem(key, date);
+          if (!cancelled) setLastModified(prev => ({ ...prev, [f.sha]: date }));
+        }
+      } catch {
+        // silencioso: si falla, esa tarjeta simplemente no muestra fecha
+      }
+    };
+
+    // Máximo 3 peticiones a la vez en vez de disparar todas de golpe
+    const CONCURRENCIA = 3;
+    let index = 0;
+    const runners = Array.from({ length: Math.min(CONCURRENCIA, files.length) }, async () => {
+      while (index < files.length && !cancelled) {
+        const file = files[index++];
+        await fetchOne(file);
+      }
     });
+    Promise.all(runners);
+
     return () => { cancelled = true; };
   }, [files]);
 
   const filtered = files.filter(f => f.name.toLowerCase().includes(query.toLowerCase()));
+
+  const sorted = [...filtered].sort((a, b) => {
+    let cmp = 0;
+    if (sortBy === 'name') {
+      cmp = a.name.localeCompare(b.name);
+    } else if (sortBy === 'size') {
+      cmp = a.size - b.size;
+    } else if (sortBy === 'type') {
+      cmp = getFileType(a.name).localeCompare(getFileType(b.name)) || a.name.localeCompare(b.name);
+    } else if (sortBy === 'date') {
+      const da = lastModified[a.sha];
+      const db = lastModified[b.sha];
+      if (!da && !db) cmp = 0;
+      else if (!da) cmp = 1; // sin fecha va al final
+      else if (!db) cmp = -1;
+      else cmp = new Date(da).getTime() - new Date(db).getTime();
+    }
+    return sortDir === 'asc' ? cmp : -cmp;
+  });
+
+  // Cuando cambia la letra activa (hover o dedo arrastrando), baja el scroll hasta la primera tarjeta de esa letra
+  useEffect(() => {
+    if (!activeLetter) return;
+    const el = cardRefs.current[activeLetter];
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [activeLetter]);
 
   return (
     <div className="min-h-screen relative overflow-hidden bg-[#060606] text-white font-sans selection:bg-white selection:text-black">
@@ -504,7 +567,7 @@ export default function App() {
 
         <main className="relative">
           {!loading && !error && files.length > 0 && (
-            <div className="mb-10 flex justify-center md:justify-start">
+            <div className="mb-10 flex flex-col md:flex-row items-center md:items-start justify-center md:justify-start gap-3">
               <input
                 type="text"
                 value={query}
@@ -512,6 +575,25 @@ export default function App() {
                 placeholder="Buscar archivos..."
                 className="w-full max-w-sm bg-transparent border border-white/20 focus:border-white/60 outline-none px-4 py-2.5 text-sm placeholder:text-gray-500 tracking-wide transition-colors"
               />
+              <div className="flex items-center gap-2">
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                  className="bg-[#0a0a0a] border border-white/20 focus:border-white/60 outline-none px-3 py-2.5 text-xs uppercase tracking-widest text-gray-300 cursor-pointer"
+                >
+                  <option value="name">Nombre</option>
+                  <option value="type">Tipo</option>
+                  <option value="size">Tamaño</option>
+                  <option value="date">Fecha modificado</option>
+                </select>
+                <button
+                  onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}
+                  title={sortDir === 'asc' ? 'Ascendente' : 'Descendente'}
+                  className="border border-white/20 hover:border-white/60 px-3 py-2.5 text-xs uppercase tracking-widest text-gray-300 hover:text-white transition-colors"
+                >
+                  {sortDir === 'asc' ? '↑ ASC' : '↓ DESC'}
+                </button>
+              </div>
             </div>
           )}
           {loading ? (
@@ -533,21 +615,28 @@ export default function App() {
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6 md:gap-8 lg:gap-12">
-              {filtered.map((file, i) => {
-                const iso = lastModified[file.sha];
-                const dateStr = iso
-                  ? new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
-                  : null;
-                return (
-                  <FileCard
-                    key={file.sha}
-                    file={file}
-                    index={i}
-                    highlighted={activeLetter !== null && activeLetter === getLetra(file.name)}
-                    dateStr={dateStr}
-                  />
-                );
-              })}
+              {(() => {
+                const seenLetters = new Set<string>();
+                return sorted.map((file, i) => {
+                  const iso = lastModified[file.sha];
+                  const dateStr = iso
+                    ? new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
+                    : null;
+                  const letra = getLetra(file.name);
+                  const esPrimeraDeLetra = !seenLetters.has(letra);
+                  if (esPrimeraDeLetra) seenLetters.add(letra);
+                  return (
+                    <FileCard
+                      key={file.sha}
+                      file={file}
+                      index={i}
+                      highlighted={activeLetter !== null && activeLetter === letra}
+                      dateStr={dateStr}
+                      innerRef={esPrimeraDeLetra ? (el: HTMLDivElement | null) => { cardRefs.current[letra] = el; } : undefined}
+                    />
+                  );
+                });
+              })()}
             </div>
           )}
         </main>
