@@ -253,7 +253,43 @@ const HalftoneBackground = () => {
   return <canvas ref={canvasRef} className="fixed inset-0 z-0 pointer-events-none mix-blend-screen opacity-70" />;
 };
 
-const FileCard = ({ file, index }: { file: GithubFile; index: number }) => {
+const LETRAS = ['#', ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ".split('')];
+
+const getLetra = (nombre: string) => {
+  const c = nombre.charAt(0).toUpperCase();
+  return /[A-Z]/.test(c) ? c : '#';
+};
+
+const AlphabetIndex = ({ active, onChange }: { active: string | null; onChange: (l: string | null) => void }) => {
+  const pickFromPoint = (x: number, y: number) => {
+    const el = document.elementFromPoint(x, y) as HTMLElement | null;
+    const letra = el?.dataset?.letra;
+    if (letra) onChange(letra);
+  };
+
+  return (
+    <div
+      onMouseLeave={() => onChange(null)}
+      onTouchStart={(e) => { const t = e.touches[0]; pickFromPoint(t.clientX, t.clientY); }}
+      onTouchMove={(e) => { const t = e.touches[0]; pickFromPoint(t.clientX, t.clientY); e.preventDefault(); }}
+      onTouchEnd={() => onChange(null)}
+      className="touch-none fixed right-1 sm:right-4 top-1/2 -translate-y-1/2 z-40 flex flex-col items-center gap-[1px] bg-[#0a0a0a]/70 backdrop-blur-md border border-white/10 rounded-full px-1 py-2 select-none"
+    >
+      {LETRAS.map(l => (
+        <span
+          key={l}
+          data-letra={l}
+          onMouseEnter={() => onChange(l)}
+          className={`text-[8px] sm:text-[10px] font-mono leading-none w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center rounded-full cursor-default transition-colors ${active === l ? 'bg-white text-black font-bold' : 'text-gray-500 hover:text-white'}`}
+        >
+          {l}
+        </span>
+      ))}
+    </div>
+  );
+};
+
+const FileCard = ({ file, index, highlighted, dateStr }: { file: GithubFile; index: number; highlighted?: boolean; dateStr?: string | null }) => {
   const [downloading, setDownloading] = useState(false);
   const [textPreview, setTextPreview] = useState<string | null>(null);
   const url = getCdnUrl(file.name);
@@ -295,7 +331,7 @@ const FileCard = ({ file, index }: { file: GithubFile; index: number }) => {
       transition={{ duration: 0.6, delay: index * 0.05, ease: [0.22, 1, 0.36, 1] }}
       onMouseEnter={(e) => { hoveredElement = e.currentTarget as HTMLElement; }}
       onMouseLeave={(e) => { if (hoveredElement === e.currentTarget) hoveredElement = null; }}
-      className="group relative flex flex-col bg-[#060606]/60 backdrop-blur-lg border border-white/10 p-2.5 sm:p-4 md:p-6 transition-all duration-500 hover:border-white/30 hover:bg-[#060606]/20"
+      className={`group relative flex flex-col bg-[#060606]/60 backdrop-blur-lg border p-2.5 sm:p-4 md:p-6 transition-all duration-500 hover:border-white/30 hover:bg-[#060606]/20 ${highlighted ? 'border-white ring-2 ring-white/50' : 'border-white/10'}`}
     >
       {/* Decorative mini flower in corner */}
       <div className="absolute -bottom-6 -right-6 w-24 h-24 text-white opacity-[0.03] pointer-events-none transform rotate-12 transition-transform group-hover:scale-110 group-hover:rotate-45 duration-700 font-mono font-bold text-[80px] leading-none text-center">
@@ -339,9 +375,13 @@ const FileCard = ({ file, index }: { file: GithubFile; index: number }) => {
       </div>
 
       <div className="flex-grow flex flex-col justify-between relative z-10 bg-transparent">
-        <h3 className="font-bold text-xs sm:text-sm md:text-base leading-tight uppercase tracking-tight break-all mb-3 sm:mb-6">
+        <h3 className="font-bold text-xs sm:text-sm md:text-base leading-tight uppercase tracking-tight break-all mb-1.5">
           {file.name}
         </h3>
+
+        <p className="text-[9px] sm:text-[10px] font-mono text-gray-500 uppercase tracking-wide mb-3 sm:mb-6 min-h-[1.2em]">
+          {dateStr ? `Actualizado: ${dateStr}` : ''}
+        </p>
         
         {type === 'audio' && (
           <audio controls src={url} className="w-full h-8 mb-3 sm:mb-4 opacity-50 grayscale hover:opacity-100 transition-opacity invert" />
@@ -373,6 +413,9 @@ export default function App() {
   const [files, setFiles] = useState<GithubFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [activeLetter, setActiveLetter] = useState<string | null>(null);
+  const [lastModified, setLastModified] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetch(API_URL)
@@ -388,10 +431,30 @@ export default function App() {
       .finally(() => setLoading(false));
   }, []);
 
+  // Trae la fecha del último commit que tocó cada archivo (best-effort, sin bloquear la UI)
+  useEffect(() => {
+    let cancelled = false;
+    files.forEach(f => {
+      const commitsUrl = `https://api.github.com/repos/${OWNER}/${REPO}/commits?path=${encodeURIComponent(`${CARPETA}/${f.name}`)}&sha=${BRANCH}&per_page=1`;
+      fetch(commitsUrl)
+        .then(r => (r.ok ? r.json() : Promise.reject()))
+        .then((data) => {
+          if (cancelled || !Array.isArray(data) || !data[0]) return;
+          const date = data[0]?.commit?.committer?.date || data[0]?.commit?.author?.date;
+          if (date) setLastModified(prev => ({ ...prev, [f.sha]: date }));
+        })
+        .catch(() => {});
+    });
+    return () => { cancelled = true; };
+  }, [files]);
+
+  const filtered = files.filter(f => f.name.toLowerCase().includes(query.toLowerCase()));
+
   return (
     <div className="min-h-screen relative overflow-hidden bg-[#060606] text-white font-sans selection:bg-white selection:text-black">
       
       <HalftoneBackground />
+      <AlphabetIndex active={activeLetter} onChange={setActiveLetter} />
 
       {/* Global Halftone/Noise Background Layer */}
       <div className="fixed inset-0 pointer-events-none z-0 opacity-40 bg-noise mix-blend-screen"></div>
@@ -440,6 +503,17 @@ export default function App() {
         </header>
 
         <main className="relative">
+          {!loading && !error && files.length > 0 && (
+            <div className="mb-10 flex justify-center md:justify-start">
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Buscar archivos..."
+                className="w-full max-w-sm bg-transparent border border-white/20 focus:border-white/60 outline-none px-4 py-2.5 text-sm placeholder:text-gray-500 tracking-wide transition-colors"
+              />
+            </div>
+          )}
           {loading ? (
             <div className="flex justify-center items-center py-32">
               <div className="flex flex-col items-center gap-4">
@@ -451,15 +525,29 @@ export default function App() {
             <div className="p-8 border border-white/20 bg-[#111] inline-block">
               <p className="font-mono text-sm font-bold uppercase text-red-400">Error: {error}</p>
             </div>
-          ) : files.length === 0 ? (
+          ) : filtered.length === 0 ? (
             <div className="p-8 border border-white/20 bg-[#111] inline-block">
-              <p className="font-mono text-sm font-bold uppercase text-gray-400">No files found.</p>
+              <p className="font-mono text-sm font-bold uppercase text-gray-400">
+                {files.length === 0 ? 'No files found.' : `Sin resultados para "${query}"`}
+              </p>
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6 md:gap-8 lg:gap-12">
-              {files.map((file, i) => (
-                <FileCard key={file.sha} file={file} index={i} />
-              ))}
+              {filtered.map((file, i) => {
+                const iso = lastModified[file.sha];
+                const dateStr = iso
+                  ? new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
+                  : null;
+                return (
+                  <FileCard
+                    key={file.sha}
+                    file={file}
+                    index={i}
+                    highlighted={activeLetter !== null && activeLetter === getLetra(file.name)}
+                    dateStr={dateStr}
+                  />
+                );
+              })}
             </div>
           )}
         </main>
