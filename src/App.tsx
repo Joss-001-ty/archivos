@@ -11,7 +11,7 @@ const CARPETA = "archivos";
 
 const API_URL = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${CARPETA}?ref=${BRANCH}`;
 
-const getCdnUrl = (name: string) => `https://cdn.jsdelivr.net/gh/${OWNER}/${REPO}@${BRANCH}/${CARPETA}/${encodeURIComponent(name)}`;
+const getCdnUrl = (name: string, ref: string) => `https://cdn.jsdelivr.net/gh/${OWNER}/${REPO}@${ref}/${CARPETA}/${encodeURIComponent(name)}`;
 
 interface GithubFile {
   name: string;
@@ -296,10 +296,10 @@ const AlphabetIndex = ({ active, onChange }: { active: string | null; onChange: 
   );
 };
 
-const FileCard = ({ file, index, highlighted, dateStr, innerRef }: { file: GithubFile; index: number; highlighted?: boolean; dateStr?: string | null; innerRef?: (el: HTMLDivElement | null) => void }) => {
+const FileCard = ({ file, index, highlighted, dateStr, innerRef, commitRef }: { file: GithubFile; index: number; highlighted?: boolean; dateStr?: string | null; innerRef?: (el: HTMLDivElement | null) => void; commitRef: string }) => {
   const [downloading, setDownloading] = useState(false);
   const [textPreview, setTextPreview] = useState<string | null>(null);
-  const url = getCdnUrl(file.name);
+  const url = getCdnUrl(file.name, commitRef);
   const type = getFileType(file.name);
 
   useEffect(() => {
@@ -426,7 +426,17 @@ export default function App() {
   const [lastModified, setLastModified] = useState<Record<string, string>>({});
   const [sortBy, setSortBy] = useState<'name' | 'size' | 'type' | 'date'>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [commitRef, setCommitRef] = useState<string>(BRANCH);
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  // Usamos el hash del último commit (en vez del nombre de la rama) para que jsDelivr
+  // sirva siempre la versión más reciente y no una copia vieja cacheada por horas.
+  useEffect(() => {
+    fetch(`https://api.github.com/repos/${OWNER}/${REPO}/commits/${BRANCH}`)
+      .then(r => (r.ok ? r.json() : Promise.reject()))
+      .then(data => { if (data?.sha) setCommitRef(data.sha); })
+      .catch(() => {}); // si falla, se queda usando la rama como respaldo
+  }, []);
 
   useEffect(() => {
     fetch(API_URL)
@@ -632,6 +642,7 @@ export default function App() {
                       index={i}
                       highlighted={activeLetter !== null && activeLetter === letra}
                       dateStr={dateStr}
+                      commitRef={commitRef}
                       innerRef={esPrimeraDeLetra ? (el: HTMLDivElement | null) => { cardRefs.current[letra] = el; } : undefined}
                     />
                   );
